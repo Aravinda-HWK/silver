@@ -270,14 +270,22 @@ jobs:
                 sudo apt-get install -y python3-pip python3-venv -qq
               fi
               
-              # Install requirements using pip3 command or python -m pip
-              if command -v pip3 &> /dev/null; then
-                pip3 install --upgrade pip --quiet 2>/dev/null || true
-                pip3 install -r requirements.txt --quiet
-              else
-                $PYTHON_CMD -m pip install --upgrade pip --quiet 2>/dev/null || true
-                $PYTHON_CMD -m pip install -r requirements.txt --quiet
+              # Create and use virtual environment to avoid PEP 668 issues
+              if [ ! -d ".venv" ]; then
+                echo "🔧 Creating virtual environment..."
+                $PYTHON_CMD -m venv .venv
               fi
+              
+              # Activate virtual environment
+              source .venv/bin/activate
+              
+              # Install requirements in virtual environment
+              echo "📥 Installing packages in virtual environment..."
+              pip install --upgrade pip --quiet 2>/dev/null || true
+              pip install -r requirements.txt --quiet
+              
+              # Use the virtual environment's Python
+              PYTHON_CMD=".venv/bin/python"
               
               # Set environment variables
               export MAIL_DOMAIN="${{ secrets.EXTERNAL_SERVER_HOST }}"
@@ -300,7 +308,20 @@ jobs:
               echo ""
               
               # Run Locust in headless mode with report generation
-              if command -v locust &> /dev/null; then
+              if [ -f ".venv/bin/locust" ]; then
+                .venv/bin/locust \
+                  -f locustfile.py \
+                  --headless \
+                  -u 10 \
+                  -r 2 \
+                  --run-time 60s \
+                  --host https://${{ secrets.EXTERNAL_SERVER_HOST }} \
+                  --html "${REPORT_DIR}/report.html" \
+                  --csv "${REPORT_DIR}/results" \
+                  --logfile "${REPORT_DIR}/locust.log" \
+                  --loglevel INFO \
+                  2>&1 | tee "${REPORT_DIR}/console.log"
+              elif command -v locust &> /dev/null; then
                 locust \
                   -f locustfile.py \
                   --headless \
@@ -442,14 +463,22 @@ jobs:
                 sudo apt-get install -y python3-pip python3-venv -qq
               fi
               
-              # Install requirements using pip3 command or python -m pip
-              if command -v pip3 &> /dev/null; then
-                pip3 install --upgrade pip --quiet 2>/dev/null || true
-                pip3 install -r requirements.txt --quiet
-              else
-                $PYTHON_CMD -m pip install --upgrade pip --quiet 2>/dev/null || true
-                $PYTHON_CMD -m pip install -r requirements.txt --quiet
+              # Create and use virtual environment to avoid PEP 668 issues
+              if [ ! -d ".venv" ]; then
+                echo "🔧 Creating virtual environment..."
+                $PYTHON_CMD -m venv .venv
               fi
+              
+              # Activate virtual environment
+              source .venv/bin/activate
+              
+              # Install requirements in virtual environment
+              echo "📥 Installing packages in virtual environment..."
+              pip install --upgrade pip --quiet 2>/dev/null || true
+              pip install -r requirements.txt --quiet
+              
+              # Use the virtual environment's Python
+              PYTHON_CMD=".venv/bin/python"
               
               # Set environment variables
               export MAIL_DOMAIN="${{ secrets.EXTERNAL_SERVER_HOST }}"
@@ -472,11 +501,12 @@ jobs:
               echo ""
               
               # Run Locust in headless mode with report generation
-              if command -v locust &> /dev/null; then
-                locust \
+              if [ -f ".venv/bin/locust" ]; then
+                .venv/bin/locust \
+                  -f locustfile.py \
                   --headless \
-                  --users 10 \
-                  --spawn-rate 2 \
+                  -u 10 \
+                  -r 2 \
                   --run-time 60s \
                   --host https://${{ secrets.EXTERNAL_SERVER_HOST }} \
                   --html "${REPORT_DIR}/report.html" \
@@ -484,28 +514,7 @@ jobs:
                   --logfile "${REPORT_DIR}/locust.log" \
                   --loglevel INFO \
                   2>&1 | tee "${REPORT_DIR}/console.log"
-              else
-                $PYTHON_CMD -m locust \
-                  --headless \
-                  --users 10 \
-                  --spawn-rate 2 \
-                  --run-time 60s \
-                  --host https://${{ secrets.EXTERNAL_SERVER_HOST }} \
-                  --html "${REPORT_DIR}/report.html" \
-                  --csv "${REPORT_DIR}/results" \
-                  --logfile "${REPORT_DIR}/locust.log" \
-                  --loglevel INFO \
-                  2>&1 | tee "${REPORT_DIR}/console.log"
-              fi
-              
-              TEST_EXIT_CODE=${PIPESTATUS[0]}
-              
-              echo ""
-              echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-              echo "📈 Load Test Summary"
-              echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-              # Run Locust in headless mode with report generation
-              if command -v locust &> /dev/null; then
+              elif command -v locust &> /dev/null; then
                 locust \
                   -f locustfile.py \
                   --headless \
