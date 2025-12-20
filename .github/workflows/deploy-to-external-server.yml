@@ -135,12 +135,9 @@ jobs:
                     
                     echo ""
                     echo "📊 Test users credentials saved to:"
-                    echo "   ${{ env.DEPLOY_PATH }}/test/load/test_data/users.csv"
+                    echo "   ${{ env.DEPLOY_PATH }}test/load/test_data/users.csv"
                     echo ""
                     echo "Total users created: $(tail -n +2 ${{ env.DEPLOY_PATH }}/test/load/test_data/users.csv | wc -l)"
-                    echo ""
-                    echo "📝 First 5 test users:"
-                    head -n 6 ${{ env.DEPLOY_PATH }}/test/load/test_data/users.csv
                   fi
                 else
                   echo "❌ Failed to create test users"
