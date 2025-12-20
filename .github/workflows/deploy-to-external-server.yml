@@ -302,9 +302,10 @@ jobs:
               # Run Locust in headless mode with report generation
               if command -v locust &> /dev/null; then
                 locust \
+                  -f locustfile.py \
                   --headless \
-                  --users 10 \
-                  --spawn-rate 2 \
+                  -u 10 \
+                  -r 2 \
                   --run-time 60s \
                   --host https://${{ secrets.EXTERNAL_SERVER_HOST }} \
                   --html "${REPORT_DIR}/report.html" \
@@ -314,9 +315,10 @@ jobs:
                   2>&1 | tee "${REPORT_DIR}/console.log"
               else
                 $PYTHON_CMD -m locust \
+                  -f locustfile.py \
                   --headless \
-                  --users 10 \
-                  --spawn-rate 2 \
+                  -u 10 \
+                  -r 2 \
                   --run-time 60s \
                   --host https://${{ secrets.EXTERNAL_SERVER_HOST }} \
                   --html "${REPORT_DIR}/report.html" \
@@ -502,25 +504,34 @@ jobs:
               echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
               echo "📈 Load Test Summary"
               echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-              echo "   • Users: 10 concurrent users"
-              echo "   • Spawn Rate: 2 users/second"
-              echo "   • Duration: 60 seconds"
-              echo "   • Host: ${{ secrets.EXTERNAL_SERVER_HOST }}"
-              echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-              echo ""
-              
-              # Run Locust in headless mode with report generation using Python
-              $PYTHON_CMD -m locust \
-                --headless \
-                --users 10 \
-                --spawn-rate 2 \
-                --run-time 60s \
-                --host https://${{ secrets.EXTERNAL_SERVER_HOST }} \
-                --html "${REPORT_DIR}/report.html" \
-                --csv "${REPORT_DIR}/results" \
-                --logfile "${REPORT_DIR}/locust.log" \
-                --loglevel INFO \
-                2>&1 | tee "${REPORT_DIR}/console.log"
+              # Run Locust in headless mode with report generation
+              if command -v locust &> /dev/null; then
+                locust \
+                  -f locustfile.py \
+                  --headless \
+                  -u 10 \
+                  -r 2 \
+                  --run-time 60s \
+                  --host https://${{ secrets.EXTERNAL_SERVER_HOST }} \
+                  --html "${REPORT_DIR}/report.html" \
+                  --csv "${REPORT_DIR}/results" \
+                  --logfile "${REPORT_DIR}/locust.log" \
+                  --loglevel INFO \
+                  2>&1 | tee "${REPORT_DIR}/console.log"
+              else
+                $PYTHON_CMD -m locust \
+                  -f locustfile.py \
+                  --headless \
+                  -u 10 \
+                  -r 2 \
+                  --run-time 60s \
+                  --host https://${{ secrets.EXTERNAL_SERVER_HOST }} \
+                  --html "${REPORT_DIR}/report.html" \
+                  --csv "${REPORT_DIR}/results" \
+                  --logfile "${REPORT_DIR}/locust.log" \
+                  --loglevel INFO \
+                  2>&1 | tee "${REPORT_DIR}/console.log"
+              fi
               
               TEST_EXIT_CODE=${PIPESTATUS[0]}
               
