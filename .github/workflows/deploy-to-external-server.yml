@@ -248,9 +248,22 @@ jobs:
               # Navigate to load test directory
               cd ${{ env.DEPLOY_PATH }}/test/load
               
-              # Check if requirements are installed
+              # Check if Python 3 is available
+              if command -v python3 &> /dev/null; then
+                PYTHON_CMD="python3"
+              elif command -v python &> /dev/null; then
+                PYTHON_CMD="python"
+              else
+                echo "❌ Python is not installed"
+                exit 1
+              fi
+              
+              echo "✅ Using Python: $PYTHON_CMD ($($PYTHON_CMD --version))"
+              
+              # Check if requirements are installed, install if needed
               echo "📦 Installing/updating load test dependencies..."
-              pip3 install -r requirements.txt --quiet
+              $PYTHON_CMD -m pip install --upgrade pip --quiet
+              $PYTHON_CMD -m pip install -r requirements.txt --quiet
               
               # Set environment variables
               export MAIL_DOMAIN="${{ secrets.EXTERNAL_SERVER_HOST }}"
@@ -272,8 +285,8 @@ jobs:
               echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
               echo ""
               
-              # Run Locust in headless mode with report generation
-              locust \
+              # Run Locust in headless mode with report generation using Python
+              $PYTHON_CMD -m locust \
                 --headless \
                 --users 10 \
                 --spawn-rate 2 \
@@ -377,9 +390,22 @@ jobs:
               # Navigate to load test directory
               cd ${{ env.DEPLOY_PATH }}/test/load
               
-              # Check if requirements are installed
+              # Check if Python 3 is available
+              if command -v python3 &> /dev/null; then
+                PYTHON_CMD="python3"
+              elif command -v python &> /dev/null; then
+                PYTHON_CMD="python"
+              else
+                echo "❌ Python is not installed"
+                exit 1
+              fi
+              
+              echo "✅ Using Python: $PYTHON_CMD ($($PYTHON_CMD --version))"
+              
+              # Check if requirements are installed, install if needed
               echo "📦 Installing/updating load test dependencies..."
-              pip3 install -r requirements.txt --quiet
+              $PYTHON_CMD -m pip install --upgrade pip --quiet
+              $PYTHON_CMD -m pip install -r requirements.txt --quiet
               
               # Set environment variables
               export MAIL_DOMAIN="${{ secrets.EXTERNAL_SERVER_HOST }}"
@@ -401,8 +427,8 @@ jobs:
               echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
               echo ""
               
-              # Run Locust in headless mode with report generation
-              locust \
+              # Run Locust in headless mode with report generation using Python
+              $PYTHON_CMD -m locust \
                 --headless \
                 --users 10 \
                 --spawn-rate 2 \
