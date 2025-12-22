@@ -15,9 +15,9 @@ class EmailServerConfig:
 
     # Try these configurations in order
     IMAP_CONFIGS = [
-        {"port": 993, "ssl": True, "name": "IMAP4_SSL"},      # Standard SSL
-        {"port": 143, "ssl": False, "starttls": True, "name": "STARTTLS"},  # STARTTLS
-        {"port": 143, "ssl": False, "starttls": False, "name": "Plain"},    # Plain (fallback)
+        {"port": 993, "ssl": True, "starttls": False, "name": "IMAP SSL (Port 993)"},
+        {"port": 143, "ssl": False, "starttls": True, "name": "IMAP with STARTTLS (Port 143)"},
+        {"port": 143, "ssl": False, "starttls": False, "name": "IMAP Plain (Port 143)"},
     ]
     
     TIMEOUT = 30
