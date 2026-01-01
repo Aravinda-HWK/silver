@@ -227,7 +227,7 @@ class SMTPLoadTester(User):
     
     @task(1)
     def send_email_with_attachment(self):
-        """Send email with attachment"""
+        """Send email with attachment (max 10MB)"""
         server = self._connect_smtp()
         if not server:
             return
@@ -247,18 +247,28 @@ class SMTPLoadTester(User):
             # Add body
             msg.attach(MIMEText(content['body'], 'html'))
             
-            # Add attachment
+            # Add attachment with size check (enforced by config)
             if os.path.exists(attachment['path']):
-                with open(attachment['path'], "rb") as attachment_file:
-                    part = MIMEBase('application', 'octet-stream')
-                    part.set_payload(attachment_file.read())
+                file_size = os.path.getsize(attachment['path'])
                 
-                encoders.encode_base64(part)
-                part.add_header(
-                    'Content-Disposition',
-                    f'attachment; filename= {os.path.basename(attachment["path"])}'
-                )
-                msg.attach(part)
+                # Skip attachment if it exceeds configured limit
+                # Note: Base64 encoding adds ~33% overhead to the size
+                if file_size > self.config.MAX_ATTACHMENT_SIZE_BYTES:
+                    logger.warning(
+                        f"Skipping attachment {attachment['path']}: "
+                        f"size {file_size//(1024*1024)}MB exceeds {self.config.MAX_ATTACHMENT_SIZE_MB}MB limit"
+                    )
+                else:
+                    with open(attachment['path'], "rb") as attachment_file:
+                        part = MIMEBase('application', 'octet-stream')
+                        part.set_payload(attachment_file.read())
+                    
+                    encoders.encode_base64(part)
+                    part.add_header(
+                        'Content-Disposition',
+                        f'attachment; filename= {os.path.basename(attachment["path"])}'
+                    )
+                    msg.attach(part)
             
             server.send_message(msg)
             server.quit()

@@ -22,3 +22,8 @@ class EmailServerConfig:
     
     TIMEOUT = 30
     USE_TLS = True
+    
+    # Attachment size limit (10MB - industry standard for email attachments)
+    # Setting to 8MB to ensure encoded size stays under 10MB (base64 adds ~33% overhead)
+    MAX_ATTACHMENT_SIZE_MB = 8
+    MAX_ATTACHMENT_SIZE_BYTES = MAX_ATTACHMENT_SIZE_MB * 1024 * 1024
