@@ -93,6 +93,11 @@ thunder_authenticate() {
     fi
 
     # Step 3: Extract Bearer token (assertion)
+    # Debug: Show the raw response to understand its structure
+    echo "Debug - Authentication response body:" >&2
+    echo "$auth_body" >&2
+    
+    # Try multiple extraction methods for robustness
     BEARER_TOKEN=$(echo "$auth_body" | grep -o '"assertion":"[^"]*' | sed 's/"assertion":"//')
 
     if [ -z "$BEARER_TOKEN" ]; then
