@@ -141,8 +141,8 @@ if [ ! -f "$CREDENTIALS_FILE" ]; then
     echo -e "${YELLOW}⚠️  Credentials file not found: $CREDENTIALS_FILE${NC}"
     echo -e "${YELLOW}Will attempt to remove all test users based on username patterns${NC}\n"
     
-    # Get test user patterns from database
-    TEST_USERS=$(docker exec "$SMTP_CONTAINER" bash -c "sqlite3 /app/data/databases/shared.db \"SELECT u.username FROM users u INNER JOIN domains d ON u.domain_id = d.id WHERE d.domain='${DOMAIN}' AND u.enabled=1 AND (u.username LIKE 'user%' OR u.username LIKE 'test%' OR u.username LIKE 'demo%' OR u.username LIKE 'employee%' OR u.username LIKE 'staff%' OR u.username LIKE 'member%');\" 2>/dev/null" | tr '\n' ' ')
+    # Get test user patterns from database (excluding admin users)
+    TEST_USERS=$(docker exec "$SMTP_CONTAINER" bash -c "sqlite3 /app/data/databases/shared.db \"SELECT u.username FROM users u INNER JOIN domains d ON u.domain_id = d.id WHERE d.domain='${DOMAIN}' AND u.enabled=1 AND u.username != 'admin' AND (u.username LIKE 'user%' OR u.username LIKE 'test%' OR u.username LIKE 'demo%' OR u.username LIKE 'employee%' OR u.username LIKE 'staff%' OR u.username LIKE 'member%');\" 2>/dev/null" | tr '\n' ' ')
     
     if [ -z "$TEST_USERS" ]; then
         echo -e "${YELLOW}No test users found matching patterns (user*, test*, demo*, employee*, staff*, member*)${NC}"
@@ -198,6 +198,12 @@ THUNDER_FAILED=0
 THUNDER_NOT_FOUND=0
 
 for USERNAME in $TEST_USERS; do
+    # Skip admin user to prevent accidental deletion
+    if [ "$USERNAME" = "admin" ]; then
+        echo -e "${YELLOW}  ⚠️  Skipping admin user (protected)${NC}"
+        continue
+    fi
+    
     EMAIL="${USERNAME}@${DOMAIN}"
     
     # Get user ID from Thunder by email
@@ -257,6 +263,11 @@ DATABASES_FAILED=0
 DB_REMOVED=0
 
 for USERNAME in $TEST_USERS; do
+    # Skip admin user to prevent accidental deletion
+    if [ "$USERNAME" = "admin" ]; then
+        continue
+    fi
+    
     # Get user ID from shared database first
     RESULT=$(docker exec "$SMTP_CONTAINER" bash -c "
         DB_PATH='/app/data/databases/shared.db'
@@ -321,6 +332,11 @@ echo -e "  • Failed: ${RED}$DATABASES_FAILED${NC}\n"
 echo -e "${YELLOW}Step 3: Removing users from shared database...${NC}"
 
 for USERNAME in $TEST_USERS; do
+    # Skip admin user to prevent accidental deletion
+    if [ "$USERNAME" = "admin" ]; then
+        continue
+    fi
+    
     docker exec "$SMTP_CONTAINER" bash -c "
         DB_PATH='/app/data/databases/shared.db'
         
