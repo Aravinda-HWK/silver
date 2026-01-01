@@ -245,21 +245,91 @@ echo -e "  • Not found: ${YELLOW}$THUNDER_NOT_FOUND${NC}"
 echo -e "  • Failed: ${RED}$THUNDER_FAILED${NC}\n"
 
 # -------------------------------
+# Remove individual user databases (BEFORE removing from shared DB)
+# -------------------------------
+echo -e "${YELLOW}Step 2: Removing individual user databases...${NC}"
+echo -e "${CYAN}  Database location: /app/data/databases/user_db_{id}.db${NC}"
+echo -e "${CYAN}  Getting user IDs from shared database first...${NC}"
+
+DATABASES_REMOVED=0
+DATABASES_NOT_FOUND=0
+DATABASES_FAILED=0
+DB_REMOVED=0
+
+for USERNAME in $TEST_USERS; do
+    # Get user ID from shared database first
+    RESULT=$(docker exec "$SMTP_CONTAINER" bash -c "
+        DB_PATH='/app/data/databases/shared.db'
+        
+        # Get domain_id
+        domain_id=\$(sqlite3 \"\$DB_PATH\" \"SELECT id FROM domains WHERE domain='${DOMAIN}' AND enabled=1;\" 2>/dev/null)
+        
+        if [ -z \"\$domain_id\" ]; then
+            echo 'DOMAIN_NOT_FOUND'
+            exit 0
+        fi
+        
+        # Get user ID
+        user_id=\$(sqlite3 \"\$DB_PATH\" \"SELECT id FROM users WHERE username='${USERNAME}' AND domain_id=\$domain_id;\" 2>/dev/null)
+        
+        if [ -z \"\$user_id\" ]; then
+            echo 'USER_NOT_FOUND'
+            exit 0
+        fi
+        
+        # Remove user database file using the naming convention: user_db_{id}.db
+        DB_FILE=\"/app/data/databases/user_db_\${user_id}.db\"
+        
+        if [ -f \"\$DB_FILE\" ]; then
+            rm -f \"\$DB_FILE\"
+            if [ \$? -eq 0 ]; then
+                echo \"REMOVED:\${user_id}\"
+            else
+                echo \"FAILED:\${user_id}\"
+            fi
+        else
+            echo \"NOT_FOUND:\${user_id}\"
+        fi
+    " 2>&1)
+    
+    # Parse the result
+    if echo "$RESULT" | grep -q "^REMOVED:"; then
+        DATABASES_REMOVED=$((DATABASES_REMOVED + 1))
+        USER_ID=$(echo "$RESULT" | cut -d: -f2)
+        if [ $((DATABASES_REMOVED % 10)) -eq 0 ]; then
+            echo -e "${GREEN}  ✓ Removed $DATABASES_REMOVED user databases...${NC}"
+        fi
+    elif echo "$RESULT" | grep -q "^NOT_FOUND:"; then
+        USER_ID=$(echo "$RESULT" | cut -d: -f2)
+        DATABASES_NOT_FOUND=$((DATABASES_NOT_FOUND + 1))
+        # Database file doesn't exist, but we'll still try to remove the user from shared DB
+    elif echo "$RESULT" | grep -q "^FAILED:"; then
+        USER_ID=$(echo "$RESULT" | cut -d: -f2)
+        DATABASES_FAILED=$((DATABASES_FAILED + 1))
+        echo -e "${RED}  ✗ Failed to remove user_db_${USER_ID}.db for ${USERNAME}${NC}"
+    fi
+done
+
+echo -e "${GREEN}✓ User database files cleanup complete:${NC}"
+echo -e "  • Removed: ${GREEN}$DATABASES_REMOVED${NC}"
+echo -e "  • Not found: ${YELLOW}$DATABASES_NOT_FOUND${NC}"
+echo -e "  • Failed: ${RED}$DATABASES_FAILED${NC}\n"
+
+# -------------------------------
 # Remove users from shared database
 # -------------------------------
-echo -e "${YELLOW}Step 2: Removing users from shared database...${NC}"
+echo -e "${YELLOW}Step 3: Removing users from shared database...${NC}"
 
-DB_REMOVED=0
 for USERNAME in $TEST_USERS; do
     docker exec "$SMTP_CONTAINER" bash -c "
         DB_PATH='/app/data/databases/shared.db'
         
         # Get domain_id
-        domain_id=\$(sqlite3 \"\$DB_PATH\" \"SELECT id FROM domains WHERE domain='${DOMAIN}' AND enabled=1;\")
+        domain_id=\$(sqlite3 \"\$DB_PATH\" \"SELECT id FROM domains WHERE domain='${DOMAIN}' AND enabled=1;\" 2>/dev/null)
         
         if [ -n \"\$domain_id\" ]; then
-            # Delete user from database
-            sqlite3 \"\$DB_PATH\" \"DELETE FROM users WHERE username='${USERNAME}' AND domain_id=\$domain_id;\"
+            # Delete user from shared database
+            sqlite3 \"\$DB_PATH\" \"DELETE FROM users WHERE username='${USERNAME}' AND domain_id=\$domain_id;\" 2>/dev/null
             
             if [ \$? -eq 0 ]; then
                 echo 'SUCCESS'
@@ -268,59 +338,11 @@ for USERNAME in $TEST_USERS; do
     " 2>&1 | grep -q "SUCCESS" && DB_REMOVED=$((DB_REMOVED + 1))
     
     if [ $((DB_REMOVED % 10)) -eq 0 ] && [ $DB_REMOVED -gt 0 ]; then
-        echo -e "${GREEN}  ✓ Removed $DB_REMOVED users from database...${NC}"
+        echo -e "${GREEN}  ✓ Removed $DB_REMOVED users from shared database...${NC}"
     fi
 done
 
-echo -e "${GREEN}✓ Database cleanup complete: Removed $DB_REMOVED users${NC}\n"
-
-# -------------------------------
-# Remove individual user databases
-# -------------------------------
-echo -e "${YELLOW}Step 3: Removing individual user databases...${NC}"
-
-DATABASES_REMOVED=0
-for USERNAME in $TEST_USERS; do
-    EMAIL="${USERNAME}@${DOMAIN}"
-    # User databases are typically named by email or username
-    # Check both possible naming conventions
-    
-    RESULT=$(docker exec "$SMTP_CONTAINER" bash -c "
-        DB_DIR='/app/data/databases'
-        REMOVED=0
-        
-        # Try removing database named after email
-        if [ -f \"\$DB_DIR/${EMAIL}.db\" ]; then
-            rm -f \"\$DB_DIR/${EMAIL}.db\"
-            REMOVED=1
-        fi
-        
-        # Try removing database named after username
-        if [ -f \"\$DB_DIR/${USERNAME}.db\" ]; then
-            rm -f \"\$DB_DIR/${USERNAME}.db\"
-            REMOVED=1
-        fi
-        
-        # Try removing database with hashed name if exists
-        # (some systems hash the email for database name)
-        EMAIL_HASH=\$(echo -n '${EMAIL}' | md5sum | cut -d' ' -f1)
-        if [ -f \"\$DB_DIR/\${EMAIL_HASH}.db\" ]; then
-            rm -f \"\$DB_DIR/\${EMAIL_HASH}.db\"
-            REMOVED=1
-        fi
-        
-        echo \$REMOVED
-    " 2>/dev/null)
-    
-    if [ "$RESULT" = "1" ]; then
-        DATABASES_REMOVED=$((DATABASES_REMOVED + 1))
-        if [ $((DATABASES_REMOVED % 10)) -eq 0 ]; then
-            echo -e "${GREEN}  ✓ Removed $DATABASES_REMOVED user databases...${NC}"
-        fi
-    fi
-done
-
-echo -e "${GREEN}✓ User databases cleanup complete: Removed $DATABASES_REMOVED databases${NC}\n"
+echo -e "${GREEN}✓ Shared database cleanup complete: Removed $DB_REMOVED users${NC}\n"
 
 # -------------------------------
 # Reload Postfix configuration
