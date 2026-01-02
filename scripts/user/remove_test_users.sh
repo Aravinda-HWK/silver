@@ -206,12 +206,15 @@ for USERNAME in $TEST_USERS; do
     
     EMAIL="${USERNAME}@${DOMAIN}"
     
-    # Get user ID from Thunder by email
+    # Get user ID from Thunder by email using SCIM filter syntax
+    # URL encode the filter: filter=email eq "user@domain.com"
+    FILTER="email eq \"${EMAIL}\""
+    ENCODED_FILTER=$(echo -n "$FILTER" | jq -sRr @uri)
+    
     USER_RESPONSE=$(curl -s -w "\n%{http_code}" -X GET \
-        -H "Content-Type: application/json" \
         -H "Accept: application/json" \
         -H "Authorization: Bearer ${BEARER_TOKEN}" \
-        "https://${THUNDER_HOST}:${THUNDER_PORT}/users?email=${EMAIL}")
+        "https://${THUNDER_HOST}:${THUNDER_PORT}/users?filter=${ENCODED_FILTER}")
     
     USER_BODY=$(echo "$USER_RESPONSE" | head -n -1)
     USER_STATUS=$(echo "$USER_RESPONSE" | tail -n1)
