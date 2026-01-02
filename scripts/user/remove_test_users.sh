@@ -209,7 +209,7 @@ for USERNAME in $TEST_USERS; do
     # Get user ID from Thunder by email using SCIM filter syntax
     # URL encode the filter: filter=email eq "user@domain.com"
     FILTER="email eq \"${EMAIL}\""
-    ENCODED_FILTER=$(echo -n "$FILTER" | jq -sRr @uri)
+    ENCODED_FILTER=$(python3 -c "import urllib.parse; print(urllib.parse.quote('${FILTER}'))")
     
     USER_RESPONSE=$(curl -s -w "\n%{http_code}" -X GET \
         -H "Accept: application/json" \
