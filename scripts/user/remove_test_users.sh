@@ -217,25 +217,32 @@ for USERNAME in $TEST_USERS; do
     USER_STATUS=$(echo "$USER_RESPONSE" | tail -n1)
     
     if [ "$USER_STATUS" -eq 200 ]; then
-        # Extract user ID from response
+        # Extract user ID and username from response
         USER_ID=$(echo "$USER_BODY" | grep -o '"id":"[^"]*' | head -n1 | sed 's/"id":"//')
+        THUNDER_USERNAME=$(echo "$USER_BODY" | grep -o '"username":"[^"]*' | head -n1 | sed 's/"username":"//')
         
         if [ -n "$USER_ID" ]; then
-            # Delete user from Thunder
-            DELETE_RESPONSE=$(curl -s -w "\n%{http_code}" -X DELETE \
-                -H "Authorization: Bearer ${BEARER_TOKEN}" \
-                "https://${THUNDER_HOST}:${THUNDER_PORT}/users/${USER_ID}")
-            
-            DELETE_STATUS=$(echo "$DELETE_RESPONSE" | tail -n1)
-            
-            if [ "$DELETE_STATUS" -eq 204 ] || [ "$DELETE_STATUS" -eq 200 ]; then
-                THUNDER_REMOVED=$((THUNDER_REMOVED + 1))
-                if [ $((THUNDER_REMOVED % 10)) -eq 0 ]; then
-                    echo -e "${GREEN}  ✓ Removed $THUNDER_REMOVED users from Thunder...${NC}"
-                fi
+            # Double-check: Never delete if Thunder username is "admin"
+            if [ "$THUNDER_USERNAME" = "admin" ]; then
+                echo -e "${YELLOW}  ⚠️  Skipping Thunder admin user (username: admin, email: $EMAIL)${NC}"
+                THUNDER_NOT_FOUND=$((THUNDER_NOT_FOUND + 1))
             else
-                echo -e "${RED}  ✗ Failed to delete $EMAIL from Thunder (HTTP $DELETE_STATUS)${NC}"
-                THUNDER_FAILED=$((THUNDER_FAILED + 1))
+                # Delete user from Thunder
+                DELETE_RESPONSE=$(curl -s -w "\n%{http_code}" -X DELETE \
+                    -H "Authorization: Bearer ${BEARER_TOKEN}" \
+                    "https://${THUNDER_HOST}:${THUNDER_PORT}/users/${USER_ID}")
+                
+                DELETE_STATUS=$(echo "$DELETE_RESPONSE" | tail -n1)
+                
+                if [ "$DELETE_STATUS" -eq 204 ] || [ "$DELETE_STATUS" -eq 200 ]; then
+                    THUNDER_REMOVED=$((THUNDER_REMOVED + 1))
+                    if [ $((THUNDER_REMOVED % 10)) -eq 0 ]; then
+                        echo -e "${GREEN}  ✓ Removed $THUNDER_REMOVED users from Thunder...${NC}"
+                    fi
+                else
+                    echo -e "${RED}  ✗ Failed to delete $EMAIL from Thunder (HTTP $DELETE_STATUS)${NC}"
+                    THUNDER_FAILED=$((THUNDER_FAILED + 1))
+                fi
             fi
         else
             THUNDER_NOT_FOUND=$((THUNDER_NOT_FOUND + 1))
