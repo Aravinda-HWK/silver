@@ -673,6 +673,23 @@ jobs:
                   echo "⚠️  Some users may not have been removed completely"
                   echo "Check the logs above for details"
                 fi
+                
+                # Clean up test data and reports directories
+                echo ""
+                echo "🧹 Cleaning up test directories..."
+                
+                if [ -d "${{ env.DEPLOY_PATH }}/test/load/test_data" ]; then
+                  rm -rf ${{ env.DEPLOY_PATH }}/test/load/test_data
+                  echo "✅ Removed test_data folder"
+                fi
+                
+                if [ -d "${{ env.DEPLOY_PATH }}/test/load/reports" ]; then
+                  rm -rf ${{ env.DEPLOY_PATH }}/test/load/reports
+                  echo "✅ Removed reports folder"
+                fi
+                
+                echo ""
+                echo "🎉 Cleanup completed!"
               else
                 echo "❌ remove_test_users.sh not found"
                 exit 1
@@ -711,6 +728,23 @@ jobs:
                   echo "⚠️  Some users may not have been removed completely"
                   echo "Check the logs above for details"
                 fi
+                
+                # Clean up test data and reports directories
+                echo ""
+                echo "🧹 Cleaning up test directories..."
+                
+                if [ -d "${{ env.DEPLOY_PATH }}/test/load/test_data" ]; then
+                  rm -rf ${{ env.DEPLOY_PATH }}/test/load/test_data
+                  echo "✅ Removed test_data folder"
+                fi
+                
+                if [ -d "${{ env.DEPLOY_PATH }}/test/load/reports" ]; then
+                  rm -rf ${{ env.DEPLOY_PATH }}/test/load/reports
+                  echo "✅ Removed reports folder"
+                fi
+                
+                echo ""
+                echo "🎉 Cleanup completed!"
               else
                 echo "❌ remove_test_users.sh not found"
                 exit 1
