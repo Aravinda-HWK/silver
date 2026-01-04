@@ -380,10 +380,12 @@ jobs:
                 echo ""
                 
                 if [ -n "$AGGREGATED_LINE" ]; then
-                  # Extract request count (column 2) and failure count (column 3)
+                  # The Aggregated row has an empty first column, so columns are shifted:
+                  # Column 1: empty, Column 2: "Aggregated", Column 3: Request Count, Column 4: Failure Count
+                  # Extract request count (column 3) and failure count (column 4)
                   # Remove quotes and trim whitespace
-                  TOTAL_REQUESTS=$(echo "$AGGREGATED_LINE" | awk -F',' '{print $2}' | tr -d '"' | tr -d ' ')
-                  TOTAL_FAILURES=$(echo "$AGGREGATED_LINE" | awk -F',' '{print $3}' | tr -d '"' | tr -d ' ')
+                  TOTAL_REQUESTS=$(echo "$AGGREGATED_LINE" | awk -F',' '{print $3}' | tr -d '"' | tr -d ' ')
+                  TOTAL_FAILURES=$(echo "$AGGREGATED_LINE" | awk -F',' '{print $4}' | tr -d '"' | tr -d ' ')
                   
                   echo "🔍 Extracted TOTAL_REQUESTS: '$TOTAL_REQUESTS'"
                   echo "🔍 Extracted TOTAL_FAILURES: '$TOTAL_FAILURES'"
@@ -605,10 +607,12 @@ jobs:
                 echo ""
                 
                 if [ -n "$AGGREGATED_LINE" ]; then
-                  # Extract request count (column 2) and failure count (column 3)
+                  # The Aggregated row has an empty first column, so columns are shifted:
+                  # Column 1: empty, Column 2: "Aggregated", Column 3: Request Count, Column 4: Failure Count
+                  # Extract request count (column 3) and failure count (column 4)
                   # Remove quotes and trim whitespace
-                  TOTAL_REQUESTS=$(echo "$AGGREGATED_LINE" | awk -F',' '{print $2}' | tr -d '"' | tr -d ' ')
-                  TOTAL_FAILURES=$(echo "$AGGREGATED_LINE" | awk -F',' '{print $3}' | tr -d '"' | tr -d ' ')
+                  TOTAL_REQUESTS=$(echo "$AGGREGATED_LINE" | awk -F',' '{print $3}' | tr -d '"' | tr -d ' ')
+                  TOTAL_FAILURES=$(echo "$AGGREGATED_LINE" | awk -F',' '{print $4}' | tr -d '"' | tr -d ' ')
                   
                   echo "🔍 Extracted TOTAL_REQUESTS: '$TOTAL_REQUESTS'"
                   echo "🔍 Extracted TOTAL_FAILURES: '$TOTAL_FAILURES'"
