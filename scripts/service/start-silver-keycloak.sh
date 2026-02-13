@@ -192,6 +192,17 @@ echo "  - Setting up user attributes and federation..."
 # You can create custom user attributes as needed via user federation or custom mappers
 echo -e "${GREEN}  ✓ Keycloak realm configured for email user management${NC}"
 
+# Step 4.5: Initialize domain in shared.db
+echo ""
+echo "  - Initializing domain in shared.db..."
+source "${SCRIPT_DIR}/../utils/shared-db-sync.sh"
+if db_init_domain "$MAIL_DOMAIN"; then
+	echo -e "${GREEN}  ✓ Domain initialized in mail database${NC}"
+else
+	echo -e "${YELLOW}  ⚠ Warning: Failed to initialize domain in shared.db${NC}"
+	echo -e "${YELLOW}  Mail services may not work properly until domain is initialized${NC}"
+fi
+
 # ================================
 # Step 5: Configuration Output
 # ================================

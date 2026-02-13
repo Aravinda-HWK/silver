@@ -22,6 +22,9 @@ CONFIG_FILE="${CONF_DIR}/silver.yaml"
 # Source Keycloak authentication utility
 source "${SCRIPT_DIR}/../utils/keycloak-auth.sh"
 
+# Source shared database sync utility
+source "${SCRIPT_DIR}/../utils/shared-db-sync.sh"
+
 # Extract domain
 MAIL_DOMAIN=$(grep -m 1 '^\s*-\s*domain:' "$CONFIG_FILE" | sed 's/.*domain:\s*//' | xargs)
 
@@ -106,7 +109,17 @@ add_user() {
         exit 1
     fi
 
-    echo -e "${GREEN}✓ User '${username}' created successfully${NC}"
+    echo -e "${GREEN}✓ User '${username}' created successfully in Keycloak${NC}"
+
+    # Add user to shared.db (for Raven IMAP/SMTP)
+    echo ""
+    echo "  - Syncing user to shared.db (Raven)..."
+    if db_add_user "$username" "$MAIL_DOMAIN"; then
+        echo -e "${GREEN}  ✓ User synced to mail database${NC}"
+    else
+        echo -e "${YELLOW}  ⚠ Warning: User created in Keycloak but failed to sync to mail database${NC}"
+        echo -e "${YELLOW}  You may need to manually add the user to shared.db${NC}"
+    fi
 
     # Set password if provided
     if [ -n "$password" ]; then
@@ -191,7 +204,16 @@ delete_user() {
     status=$(echo "$response" | tail -n1)
 
     if [ "$status" -eq 204 ] || [ "$status" -eq 200 ]; then
-        echo -e "${GREEN}✓ User '${username}' deleted successfully${NC}"
+        echo -e "${GREEN}✓ User '${username}' deleted from Keycloak${NC}"
+        
+        # Remove user from shared.db (for Raven IMAP/SMTP)
+        echo ""
+        echo "  - Syncing deletion to shared.db (Raven)..."
+        if db_remove_user "$username" "$MAIL_DOMAIN"; then
+            echo -e "${GREEN}  ✓ User removed from mail database${NC}"
+        else
+            echo -e "${YELLOW}  ⚠ Warning: User deleted from Keycloak but failed to remove from mail database${NC}"
+        fi
     else
         echo -e "${RED}✗ Failed to delete user (HTTP $status)${NC}"
         exit 1
