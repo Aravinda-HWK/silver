@@ -128,11 +128,14 @@ echo -e "${GREEN}  ✓ Keycloak service started${NC}"
 echo "  - Waiting for Keycloak to be ready..."
 KEYCLOAK_HOST="${MAIL_DOMAIN}"
 KEYCLOAK_PORT=8080
-MAX_WAIT=60
+MAX_WAIT=120
 WAIT_COUNT=0
 
 while [ $WAIT_COUNT -lt $MAX_WAIT ]; do
-	if curl -s -f "http://${KEYCLOAK_HOST}:${KEYCLOAK_PORT}/health/ready" > /dev/null 2>&1; then
+	# Try multiple health check endpoints
+	if curl -s -f "http://${KEYCLOAK_HOST}:${KEYCLOAK_PORT}/health/ready" > /dev/null 2>&1 || \
+	   curl -s -f "http://${KEYCLOAK_HOST}:${KEYCLOAK_PORT}/health" > /dev/null 2>&1 || \
+	   curl -s "http://${KEYCLOAK_HOST}:${KEYCLOAK_PORT}/realms/master" | grep -q "realm" 2>/dev/null; then
 		echo -e "${GREEN}  ✓ Keycloak is ready${NC}"
 		break
 	fi
@@ -143,6 +146,7 @@ done
 
 if [ $WAIT_COUNT -ge $MAX_WAIT ]; then
 	echo -e "${RED}\n✗ Keycloak did not become ready in time${NC}"
+	echo -e "${YELLOW}Note: Check Keycloak logs with: docker logs keycloak-server${NC}"
 	exit 1
 fi
 
