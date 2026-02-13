@@ -24,14 +24,32 @@ RED="\033[0;31m"
 NC="\033[0m" # No Color
 
 # ============================================
+# Helper: Build Keycloak URL
+# ============================================
+_keycloak_url() {
+    local protocol="${KEYCLOAK_PROTOCOL:-http}"
+    echo "${protocol}://$1:$2"
+}
+
+# ============================================
+# Helper: Get curl options
+# ============================================
+_curl_opts() {
+    echo "${KEYCLOAK_CURL_OPTS:-}"
+}
+
+# ============================================
 # Function: Authenticate with Keycloak and get access token
 # ============================================
 # Arguments:
 #   $1 - Keycloak host (e.g., "example.com")
-#   $2 - Keycloak port (e.g., "8080")
+#   $2 - Keycloak port (e.g., "8080" or "8443")
 #   $3 - Keycloak realm (e.g., "master")
 #   $4 - Admin username (optional, defaults to "admin")
 #   $5 - Admin password (optional, defaults to "admin")
+# Environment Variables:
+#   KEYCLOAK_USE_HTTPS - Set to "true" to use HTTPS (default: auto-detect based on port)
+#   KEYCLOAK_INSECURE - Set to "true" to skip SSL verification (for self-signed certs)
 # Returns:
 #   0 on success, 1 on failure
 # Exports:
@@ -49,12 +67,25 @@ keycloak_authenticate() {
         return 1
     fi
 
+    # Auto-detect HTTPS based on port or environment variable
+    local protocol="http"
+    local curl_opts=""
+    
+    if [ "$keycloak_port" = "8443" ] || [ "$keycloak_port" = "443" ] || [ "${KEYCLOAK_USE_HTTPS}" = "true" ]; then
+        protocol="https"
+        # Add insecure flag for self-signed certificates if requested
+        if [ "${KEYCLOAK_INSECURE}" = "true" ]; then
+            curl_opts="-k"
+        fi
+    fi
+
     echo -e "${YELLOW}Authenticating with Keycloak...${NC}"
+    echo "  - Protocol: ${protocol}"
     echo "  - Requesting access token from Keycloak..."
 
     local auth_response
-    auth_response=$(curl -s -w "\n%{http_code}" -X POST \
-        "http://${keycloak_host}:${keycloak_port}/realms/${keycloak_realm}/protocol/openid-connect/token" \
+    auth_response=$(curl -s -w ${curl_opts} "\n%{http_code}" ${curl_opts} -X POST \
+        "${protocol}://${keycloak_host}:${keycloak_port}/realms/${keycloak_realm}/protocol/openid-connect/token" \
         -H "Content-Type: application/x-www-form-urlencoded" \
         -d "client_id=admin-cli" \
         -d "username=${admin_username}" \
@@ -83,8 +114,10 @@ keycloak_authenticate() {
 
     echo -e "${GREEN}  ✓ Authentication successful${NC}"
 
-    # Export variable for use in calling script
+    # Export variables for use in calling script
     export KEYCLOAK_ACCESS_TOKEN
+    export KEYCLOAK_PROTOCOL="${protocol}"
+    export KEYCLOAK_CURL_OPTS="${curl_opts}"
 
     return 0
 }
@@ -117,10 +150,14 @@ keycloak_create_realm() {
 
     echo "  - Creating/checking realm '${realm_name}'..."
 
+    # Use protocol and curl options from authentication
+    local protocol="${KEYCLOAK_PROTOCOL:-http}"
+    local curl_opts="${KEYCLOAK_CURL_OPTS:-}"
+
     # Check if realm exists
     local check_response
-    check_response=$(curl -s -w "\n%{http_code}" -X GET \
-        "http://${keycloak_host}:${keycloak_port}/admin/realms/${realm_name}" \
+    check_response=$(curl -s -w ${curl_opts} "\n%{http_code}" ${curl_opts} -X GET \
+        "${protocol}://${keycloak_host}:${keycloak_port}/admin/realms/${realm_name}" \
         -H "Authorization: Bearer ${access_token}")
 
     local check_status
@@ -134,8 +171,8 @@ keycloak_create_realm() {
 
     # Create realm
     local realm_response
-    realm_response=$(curl -s -w "\n%{http_code}" -X POST \
-        "http://${keycloak_host}:${keycloak_port}/admin/realms" \
+    realm_response=$(curl -s -w ${curl_opts} "\n%{http_code}" ${curl_opts} -X POST \
+        "${protocol}://${keycloak_host}:${keycloak_port}/admin/realms" \
         -H "Content-Type: application/json" \
         -H "Authorization: Bearer ${access_token}" \
         -d "{
@@ -197,8 +234,8 @@ keycloak_create_client() {
 
     # Check if client already exists
     local check_response
-    check_response=$(curl -s -w "\n%{http_code}" -X GET \
-        "http://${keycloak_host}:${keycloak_port}/admin/realms/${realm_name}/clients?clientId=${client_id}" \
+    check_response=$(curl -s -w ${curl_opts} "\n%{http_code}" -X GET \
+        "${protocol}://${keycloak_host}:${keycloak_port}/admin/realms/${realm_name}/clients?clientId=${client_id}" \
         -H "Authorization: Bearer ${access_token}")
 
     local check_body
@@ -221,8 +258,8 @@ keycloak_create_client() {
 
     # Create client
     local client_response
-    client_response=$(curl -s -w "\n%{http_code}" -X POST \
-        "http://${keycloak_host}:${keycloak_port}/admin/realms/${realm_name}/clients" \
+    client_response=$(curl -s -w ${curl_opts} "\n%{http_code}" -X POST \
+        "${protocol}://${keycloak_host}:${keycloak_port}/admin/realms/${realm_name}/clients" \
         -H "Content-Type: application/json" \
         -H "Authorization: Bearer ${access_token}" \
         -d "{
@@ -250,8 +287,8 @@ keycloak_create_client() {
 
     # Get the created client UUID
     local get_client_response
-    get_client_response=$(curl -s -w "\n%{http_code}" -X GET \
-        "http://${keycloak_host}:${keycloak_port}/admin/realms/${realm_name}/clients?clientId=${client_id}" \
+    get_client_response=$(curl -s -w ${curl_opts} "\n%{http_code}" -X GET \
+        "${protocol}://${keycloak_host}:${keycloak_port}/admin/realms/${realm_name}/clients?clientId=${client_id}" \
         -H "Authorization: Bearer ${access_token}")
 
     local get_client_body
@@ -306,8 +343,8 @@ keycloak_create_user() {
     echo "  - Creating user '${username}'..."
 
     local user_response
-    user_response=$(curl -s -w "\n%{http_code}" -X POST \
-        "http://${keycloak_host}:${keycloak_port}/admin/realms/${realm_name}/users" \
+    user_response=$(curl -s -w ${curl_opts} "\n%{http_code}" -X POST \
+        "${protocol}://${keycloak_host}:${keycloak_port}/admin/realms/${realm_name}/users" \
         -H "Content-Type: application/json" \
         -H "Authorization: Bearer ${access_token}" \
         -d "{

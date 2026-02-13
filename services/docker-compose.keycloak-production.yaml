@@ -1,0 +1,150 @@
+version: '3.8'
+
+# ============================================
+# Keycloak Production Configuration with HTTPS
+# ============================================
+# This file configures Keycloak for production use with:
+# - HTTPS enabled using certbot certificates
+# - PostgreSQL database
+# - Strict security settings
+# - Proper hostname configuration
+#
+# Usage:
+#   1. Ensure certbot has generated certificates for your domain
+#   2. Set DOMAIN environment variable or update ${DOMAIN} in this file
+#   3. Update database credentials
+#   4. Run: docker compose -f docker-compose.keycloak-production.yaml up -d
+
+services:
+  keycloak-db:
+    image: postgres:15-alpine
+    container_name: keycloak-postgres
+    environment:
+      POSTGRES_DB: keycloak
+      POSTGRES_USER: keycloak
+      # ⚠️ CHANGE THIS PASSWORD IN PRODUCTION!
+      POSTGRES_PASSWORD: ${KEYCLOAK_DB_PASSWORD:-keycloak_change_me_in_production}
+    volumes:
+      - keycloak-postgres-data:/var/lib/postgresql/data
+    networks:
+      - mail-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U keycloak"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  keycloak:
+    image: quay.io/keycloak/keycloak:latest
+    container_name: keycloak-server-production
+    depends_on:
+      keycloak-db:
+        condition: service_healthy
+    environment:
+      # Admin credentials - ⚠️ CHANGE THESE IN PRODUCTION!
+      KC_BOOTSTRAP_ADMIN_USERNAME: ${KEYCLOAK_ADMIN:-admin}
+      KC_BOOTSTRAP_ADMIN_PASSWORD: ${KEYCLOAK_ADMIN_PASSWORD:-admin_change_me}
+      
+      # Database configuration (PostgreSQL)
+      KC_DB: postgres
+      KC_DB_URL: jdbc:postgresql://keycloak-db:5432/keycloak
+      KC_DB_USERNAME: keycloak
+      KC_DB_PASSWORD: ${KEYCLOAK_DB_PASSWORD:-keycloak_change_me_in_production}
+      KC_DB_SCHEMA: public
+      
+      # Connection pool settings
+      KC_DB_POOL_INITIAL_SIZE: "20"
+      KC_DB_POOL_MAX_SIZE: "100"
+      KC_DB_POOL_MIN_SIZE: "10"
+      
+      # Hostname configuration
+      # Replace ${DOMAIN} with your actual domain, e.g., auth.example.com
+      KC_HOSTNAME: ${KEYCLOAK_HOSTNAME:-auth.example.com}
+      KC_HOSTNAME_STRICT: "true"
+      KC_HOSTNAME_STRICT_HTTPS: "true"
+      KC_HOSTNAME_ADMIN: ${KEYCLOAK_HOSTNAME:-auth.example.com}
+      
+      # HTTPS configuration using certbot certificates
+      # Certbot stores certificates at /etc/letsencrypt/live/${DOMAIN}/
+      KC_HTTPS_CERTIFICATE_FILE: /opt/keycloak/certs/live/${KEYCLOAK_HOSTNAME:-auth.example.com}/fullchain.pem
+      KC_HTTPS_CERTIFICATE_KEY_FILE: /opt/keycloak/certs/live/${KEYCLOAK_HOSTNAME:-auth.example.com}/privkey.pem
+      KC_HTTPS_PORT: "8443"
+      
+      # HTTP configuration (can be disabled in production if using only HTTPS)
+      KC_HTTP_ENABLED: "false"  # Set to "true" if you want to allow HTTP
+      KC_HTTP_PORT: "8080"
+      
+      # Proxy configuration (if behind reverse proxy like nginx)
+      # KC_PROXY: "edge"
+      # KC_PROXY_HEADERS: "xforwarded"
+      
+      # Security settings
+      KC_HTTPS_PROTOCOLS: "TLSv1.3,TLSv1.2"
+      KC_HTTPS_CLIENT_AUTH: "none"
+      
+      # Health and metrics
+      KC_HEALTH_ENABLED: "true"
+      KC_METRICS_ENABLED: "true"
+      
+      # Logging
+      KC_LOG_LEVEL: "INFO"
+      KC_LOG_CONSOLE_OUTPUT: "default"
+      
+      # Cache configuration
+      KC_CACHE: "ispn"
+      KC_CACHE_STACK: "tcp"
+      
+      # Features
+      KC_FEATURES: "token-exchange,admin-fine-grained-authz"
+      
+    ports:
+      # Expose HTTPS port (primary)
+      - "8443:8443"
+      # Optionally expose HTTP port (if KC_HTTP_ENABLED is true)
+      - "8080:8080"
+      
+    volumes:
+      - keycloak-data:/opt/keycloak/data
+      # Mount certbot certificates (read-only)
+      # Certbot certificates are at ./silver-config/certbot/keys/etc/live/${DOMAIN}/
+      - ./silver-config/certbot/keys/etc:/opt/keycloak/certs:ro
+      
+    command:
+      # Production mode (not start-dev)
+      - start
+      # Add --optimized flag if you've pre-built the configuration
+      # - start
+      # - --optimized
+      
+    networks:
+      - mail-network
+      
+    restart: unless-stopped
+    
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f https://localhost:8443/health/ready --insecure || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 120s
+    
+    # Resource limits (adjust based on your needs)
+    deploy:
+      resources:
+        limits:
+          cpus: '2.0'
+          memory: 2G
+        reservations:
+          cpus: '1.0'
+          memory: 1G
+
+volumes:
+  keycloak-data:
+    driver: local
+  keycloak-postgres-data:
+    driver: local
+
+networks:
+  mail-network:
+    external: true
