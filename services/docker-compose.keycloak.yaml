@@ -13,10 +13,15 @@ services:
       # For production, use PostgreSQL or MySQL
       KC_DB: dev-file
       
-      # HTTP settings
+      # HTTP settings - allow HTTP in development mode
       KC_HTTP_ENABLED: "true"
       KC_HOSTNAME_STRICT: "false"
       KC_HOSTNAME_STRICT_HTTPS: "false"
+      KC_HTTP_RELATIVE_PATH: "/"
+      
+      # Proxy settings - accept HTTP requests
+      KC_PROXY: "edge"
+      KC_PROXY_HEADERS: "xforwarded"
       
       # Health checks
       KC_HEALTH_ENABLED: "true"
