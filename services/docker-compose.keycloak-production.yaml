@@ -130,13 +130,15 @@ services:
       start_period: 120s
     
     # Resource limits (adjust based on your needs)
+    # Note: For single CPU systems, use lower values
+    # If you encounter CPU range errors, comment out the entire deploy section below
     deploy:
       resources:
         limits:
-          cpus: '2.0'
+          cpus: '0.8'
           memory: 2G
         reservations:
-          cpus: '1.0'
+          cpus: '0.5'
           memory: 1G
 
 volumes:
