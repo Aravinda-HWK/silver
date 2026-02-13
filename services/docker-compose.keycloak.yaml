@@ -1,0 +1,64 @@
+version: '3.8'
+
+services:
+  keycloak:
+    image: quay.io/keycloak/keycloak:latest
+    container_name: keycloak-server
+    environment:
+      # Admin credentials (change these in production!)
+      KEYCLOAK_ADMIN: admin
+      KEYCLOAK_ADMIN_PASSWORD: admin
+      
+      # Database configuration (using embedded H2 for simplicity)
+      # For production, use PostgreSQL or MySQL
+      KC_DB: dev-file
+      
+      # HTTP settings
+      KC_HTTP_ENABLED: "true"
+      KC_HOSTNAME_STRICT: "false"
+      KC_HOSTNAME_STRICT_HTTPS: "false"
+      
+      # Health checks
+      KC_HEALTH_ENABLED: "true"
+      KC_METRICS_ENABLED: "true"
+    ports:
+      - "8080:8080"
+      - "8443:8443"
+    volumes:
+      - keycloak-data:/opt/keycloak/data
+    command:
+      - start-dev
+    networks:
+      - mail-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:8080/health/ready || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 30
+      start_period: 60s
+
+  # Optional: PostgreSQL for production use
+  # Uncomment this section and update keycloak environment variables for production
+  # keycloak-db:
+  #   image: postgres:15-alpine
+  #   container_name: keycloak-postgres
+  #   environment:
+  #     POSTGRES_DB: keycloak
+  #     POSTGRES_USER: keycloak
+  #     POSTGRES_PASSWORD: keycloak_password_change_me
+  #   volumes:
+  #     - keycloak-postgres-data:/var/lib/postgresql/data
+  #   networks:
+  #     - mail-network
+  #   restart: unless-stopped
+
+volumes:
+  keycloak-data:
+    driver: local
+  # keycloak-postgres-data:
+  #   driver: local
+
+networks:
+  mail-network:
+    external: true
