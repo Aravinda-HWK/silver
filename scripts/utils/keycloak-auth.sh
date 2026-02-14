@@ -232,9 +232,13 @@ keycloak_create_client() {
 
     echo "  - Creating client '${client_id}'..."
 
+    # Use protocol and curl options from authentication
+    local protocol="${KEYCLOAK_PROTOCOL:-http}"
+    local curl_opts="${KEYCLOAK_CURL_OPTS:-}"
+
     # Check if client already exists
     local check_response
-    check_response=$(curl -s -w ${curl_opts} "\n%{http_code}" -X GET \
+    check_response=$(curl -s -w "\n%{http_code}" ${curl_opts} -X GET \
         "${protocol}://${keycloak_host}:${keycloak_port}/admin/realms/${realm_name}/clients?clientId=${client_id}" \
         -H "Authorization: Bearer ${access_token}")
 
@@ -258,7 +262,7 @@ keycloak_create_client() {
 
     # Create client
     local client_response
-    client_response=$(curl -s -w ${curl_opts} "\n%{http_code}" -X POST \
+    client_response=$(curl -s -w "\n%{http_code}" ${curl_opts} -X POST \
         "${protocol}://${keycloak_host}:${keycloak_port}/admin/realms/${realm_name}/clients" \
         -H "Content-Type: application/json" \
         -H "Authorization: Bearer ${access_token}" \
@@ -287,7 +291,7 @@ keycloak_create_client() {
 
     # Get the created client UUID
     local get_client_response
-    get_client_response=$(curl -s -w ${curl_opts} "\n%{http_code}" -X GET \
+    get_client_response=$(curl -s -w "\n%{http_code}" ${curl_opts} -X GET \
         "${protocol}://${keycloak_host}:${keycloak_port}/admin/realms/${realm_name}/clients?clientId=${client_id}" \
         -H "Authorization: Bearer ${access_token}")
 
@@ -342,8 +346,12 @@ keycloak_create_user() {
 
     echo "  - Creating user '${username}'..."
 
+    # Use protocol and curl options from authentication
+    local protocol="${KEYCLOAK_PROTOCOL:-http}"
+    local curl_opts="${KEYCLOAK_CURL_OPTS:-}"
+
     local user_response
-    user_response=$(curl -s -w ${curl_opts} "\n%{http_code}" -X POST \
+    user_response=$(curl -s -w "\n%{http_code}" ${curl_opts} -X POST \
         "${protocol}://${keycloak_host}:${keycloak_port}/admin/realms/${realm_name}/users" \
         -H "Content-Type: application/json" \
         -H "Authorization: Bearer ${access_token}" \
