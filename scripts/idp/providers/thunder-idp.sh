@@ -66,12 +66,16 @@ thunder_wait_for_ready() {
     local wait_count=0
     
     while [ $wait_count -lt $max_wait ]; do
-        # Check if Thunder is responding
-        if curl -k -s -f "https://${host}:${port}/scim2/Users" > /dev/null 2>&1 || \
-           curl -k -s "https://${host}:${port}/scim2/Users" 2>/dev/null | grep -q "schemas" 2>/dev/null; then
+        # Check if Thunder is responding (401 is acceptable - means server is up but needs auth)
+        local response_code=$(curl -k -s -o /dev/null -w "%{http_code}" "https://${host}:${port}/scim2/Users" 2>/dev/null)
+        
+        # 401 (Unauthorized) means Thunder is up and running, just needs authentication
+        # 200 would mean it's accessible (unlikely without auth)
+        if [ "$response_code" = "401" ] || [ "$response_code" = "200" ]; then
             echo -e "${GREEN}  ✓ Thunder is ready${NC}"
             return 0
         fi
+        
         sleep 2
         wait_count=$((wait_count + 2))
         echo -n "."

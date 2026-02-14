@@ -26,6 +26,27 @@ CONFIG_FILE="${CONF_DIR}/silver.yaml"
 # IdP directory
 IDP_DIR="$(cd "${SCRIPT_DIR}/../idp" && pwd)"
 
+# ================================
+# Helper: Get IdP Port from Config
+# ================================
+get_idp_port_from_config() {
+    local config_file="$1"
+    local provider_name="$2"
+    
+    # Extract port from YAML based on provider
+    case "$provider_name" in
+        thunder)
+            echo "8090"
+            ;;
+        keycloak)
+            echo "8080"
+            ;;
+        *)
+            echo "8080"  # Default
+            ;;
+    esac
+}
+
 # ASCII Banner
 echo -e "${CYAN}"
 cat <<'EOF'
@@ -214,24 +235,3 @@ echo -e "  4. Check service logs: ${YELLOW}docker compose logs -f${NC}"
 echo ""
 echo -e "${CYAN}For more information, check the documentation.${NC}"
 echo ""
-
-# ================================
-# Helper: Get IdP Port from Config
-# ================================
-get_idp_port_from_config() {
-    local config_file="$1"
-    local provider_name="$2"
-    
-    # Extract port from YAML based on provider
-    case "$provider_name" in
-        thunder)
-            echo "8090"
-            ;;
-        keycloak)
-            echo "8080"
-            ;;
-        *)
-            echo "8080"  # Default
-            ;;
-    esac
-}
