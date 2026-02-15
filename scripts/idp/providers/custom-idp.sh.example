@@ -1,0 +1,200 @@
+#!/bin/bash
+
+# ============================================
+#  Custom Identity Provider Template
+# ============================================
+#
+# This is a template for creating a new Identity Provider implementation.
+# Copy this file and rename it to match your provider (e.g., auth0-idp.sh)
+# then implement the required functions.
+
+# Source the interface
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "${SCRIPT_DIR}/../idp-interface.sh"
+
+# Colors
+CYAN="\033[0;36m"
+GREEN="\033[0;32m"
+YELLOW="\033[1;33m"
+RED="\033[0;31m"
+NC="\033[0m"
+
+# TODO: Replace 'custom' with your provider name throughout this file
+
+# ============================================
+# Custom: Initialize
+# ============================================
+# Start your Identity Provider service
+# ============================================
+custom_initialize() {
+    local domain="$1"
+    
+    if [ -z "$domain" ]; then
+        echo -e "${RED}✗ Domain is required for initialization${NC}" >&2
+        return 1
+    fi
+    
+    echo "  - Starting Custom identity provider..."
+    
+    # Get the compose file path
+    local compose_file=$(custom_get_compose_file)
+    
+    if [ ! -f "$compose_file" ]; then
+        echo -e "${RED}✗ Docker-compose file not found: ${compose_file}${NC}" >&2
+        return 1
+    fi
+    
+    # TODO: Add any pre-start configuration here
+    
+    # Start services using docker-compose
+    (cd "$(dirname "$compose_file")" && docker compose -f "$(basename "$compose_file")" up -d)
+    
+    if [ $? -ne 0 ]; then
+        echo -e "${RED}✗ Failed to start services${NC}" >&2
+        return 1
+    fi
+    
+    echo -e "${GREEN}  ✓ Custom service started${NC}"
+    return 0
+}
+
+# ============================================
+# Custom: Wait for Ready
+# ============================================
+# Wait for your IdP to be healthy and ready to accept requests
+# ============================================
+custom_wait_for_ready() {
+    local host="$1"
+    local port="${2:-8080}"  # TODO: Change default port
+    
+    if [ -z "$host" ]; then
+        echo -e "${RED}✗ Host is required${NC}" >&2
+        return 1
+    fi
+    
+    echo "  - Waiting for Custom IdP to be ready..."
+    
+    local max_wait=120
+    local wait_count=0
+    
+    while [ $wait_count -lt $max_wait ]; do
+        # TODO: Replace with your health check endpoint
+        if curl -s -f "http://${host}:${port}/health" > /dev/null 2>&1; then
+            echo -e "${GREEN}  ✓ Custom IdP is ready${NC}"
+            return 0
+        fi
+        sleep 2
+        wait_count=$((wait_count + 2))
+        echo -n "."
+    done
+    
+    echo -e "${RED}\n✗ Custom IdP did not become ready in time${NC}" >&2
+    echo -e "${YELLOW}Note: Check logs with: docker logs <your-container-name>${NC}" >&2
+    return 1
+}
+
+# ============================================
+# Custom: Configure
+# ============================================
+# Configure your IdP with necessary settings:
+# - Create realms/organizations
+# - Set up clients/applications
+# - Configure user schemas/attributes
+# - Initialize database connections
+# ============================================
+custom_configure() {
+    local domain="$1"
+    
+    if [ -z "$domain" ]; then
+        echo -e "${RED}✗ Domain is required for configuration${NC}" >&2
+        return 1
+    fi
+    
+    echo "  - Configuring Custom identity provider..."
+    
+    local idp_host="$domain"
+    local idp_port=8080  # TODO: Change to your port
+    
+    # TODO: Source any authentication utilities you need
+    # local utils_dir="$(cd "${SCRIPT_DIR}/../../utils" && pwd)"
+    # source "${utils_dir}/custom-auth.sh"
+    
+    # Step 1: Authenticate
+    echo "  - Authenticating with Custom IdP..."
+    # TODO: Implement authentication
+    # if ! custom_authenticate "$idp_host" "$idp_port"; then
+    #     echo -e "${RED}✗ Failed to authenticate${NC}" >&2
+    #     return 1
+    # fi
+    
+    # Step 2: Create organization/realm
+    echo "  - Creating organization/realm..."
+    # TODO: Implement organization/realm creation
+    
+    # Step 3: Create application/client
+    echo "  - Creating application/client..."
+    # TODO: Implement client creation
+    
+    # Step 4: Configure user schema
+    echo "  - Configuring user schema..."
+    # TODO: Implement user schema configuration
+    
+    # Step 5: Initialize database (if needed)
+    echo "  - Initializing domain in shared database..."
+    local utils_dir="$(cd "${SCRIPT_DIR}/../../utils" && pwd)"
+    source "${utils_dir}/shared-db-sync.sh"
+    if db_init_domain "$domain"; then
+        echo -e "${GREEN}  ✓ Domain initialized in mail database${NC}"
+    else
+        echo -e "${YELLOW}  ⚠ Warning: Failed to initialize domain in shared.db${NC}"
+        echo -e "${YELLOW}  Mail services may not work properly until domain is initialized${NC}"
+    fi
+    
+    echo -e "${GREEN}  ✓ Custom IdP configured successfully${NC}"
+    return 0
+}
+
+# ============================================
+# Custom: Get Compose File
+# ============================================
+# Return the path to your docker-compose file
+# ============================================
+custom_get_compose_file() {
+    local idp_docker_dir="$(cd "${SCRIPT_DIR}/../docker" && pwd)"
+    echo "${idp_docker_dir}/docker-compose.custom.yaml"  # TODO: Change filename
+}
+
+# ============================================
+# Custom: Cleanup
+# ============================================
+# Stop and clean up your IdP services
+# ============================================
+custom_cleanup() {
+    echo "  - Cleaning up Custom services..."
+    
+    local compose_file=$(custom_get_compose_file)
+    
+    if [ ! -f "$compose_file" ]; then
+        echo -e "${YELLOW}  ⚠ Compose file not found: ${compose_file}${NC}"
+        return 0
+    fi
+    
+    (cd "$(dirname "$compose_file")" && docker compose -f "$(basename "$compose_file")" down)
+    
+    if [ $? -eq 0 ]; then
+        echo -e "${GREEN}  ✓ Custom services stopped${NC}"
+        return 0
+    else
+        echo -e "${RED}  ✗ Failed to stop Custom services${NC}" >&2
+        return 1
+    fi
+}
+
+# ============================================
+# Export all functions
+# ============================================
+export -f custom_initialize
+export -f custom_wait_for_ready
+export -f custom_configure
+export -f custom_get_compose_file
+export -f custom_cleanup
