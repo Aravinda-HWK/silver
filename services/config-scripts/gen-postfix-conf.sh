@@ -91,6 +91,13 @@ smtp_tls_session_cache_database = btree:\${data_directory}/smtp_scache
 smtp_tls_loglevel = 1
 
 
+# Recipient restrictions with policy service integration
+smtpd_recipient_restrictions =
+    permit_mynetworks,
+    permit_sasl_authenticated,
+    reject_unauth_destination,
+    check_policy_service inet:policy-service:9000
+
 smtpd_relay_restrictions = permit_mynetworks permit_sasl_authenticated defer_unauth_destination
 myhostname = ${MAIL_HOSTNAME}
 alias_maps = hash:/etc/aliases

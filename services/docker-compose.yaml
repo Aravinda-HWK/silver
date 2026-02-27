@@ -23,6 +23,7 @@ services:
       - rspamd-server
       - certbot-server
       - raven-server
+      - policy-service
 
   raven-server:
     image: ghcr.io/lsflk/raven:latest
@@ -42,6 +43,27 @@ services:
       - mail-network
     restart: unless-stopped
     user: "0:0"
+
+  policy-service:
+    build:
+      context: ./policy-service
+      dockerfile: Dockerfile
+    container_name: policy-service
+    expose:
+      - "9000"
+    environment:
+      - IDP_URL=https://thunder-server:8090
+      - IDP_TOKEN=${THUNDER_IDP_TOKEN:-}
+      - POLICY_HOST=0.0.0.0
+      - POLICY_PORT=9000
+      - CONFIG_FILE=/etc/postfix/silver.yaml
+    volumes:
+      - ../conf/silver.yaml:/etc/postfix/silver.yaml:ro
+    networks:
+      - mail-network
+    restart: unless-stopped
+    depends_on:
+      - thunder
 
   opendkim-server:
     image: ghcr.io/lsflk/silver-dkim:main
