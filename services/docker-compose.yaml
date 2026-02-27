@@ -54,16 +54,19 @@ services:
     environment:
       - IDP_URL=https://thunder-server:8090
       - IDP_TOKEN=${THUNDER_IDP_TOKEN:-}
+      - USE_DATABASE=true
+      - DB_PATH=/app/data/databases/shared.db
       - POLICY_HOST=0.0.0.0
       - POLICY_PORT=9000
       - CONFIG_FILE=/etc/postfix/silver.yaml
     volumes:
       - ../conf/silver.yaml:/etc/postfix/silver.yaml:ro
+      - ./silver-config/raven/data:/app/data:ro
     networks:
       - mail-network
     restart: unless-stopped
     depends_on:
-      - thunder
+      - raven-server
 
   opendkim-server:
     image: ghcr.io/lsflk/silver-dkim:main

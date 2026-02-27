@@ -45,6 +45,7 @@ import sys
 from typing import Dict, Optional
 import aiohttp
 import yaml
+import sqlite3
 
 # Configure logging
 logging.basicConfig(
@@ -60,22 +61,27 @@ logger = logging.getLogger(__name__)
 class PostfixPolicyService:
     """Handles Postfix policy delegation protocol"""
     
-    def __init__(self, idp_url: str, idp_token: Optional[str] = None):
+    def __init__(self, idp_url: str, idp_token: Optional[str] = None, use_database: bool = False, db_path: str = "/app/data/databases/shared.db"):
         """
         Initialize the policy service
         
         Args:
             idp_url: Base URL of the Thunder IdP server
             idp_token: Optional authentication token for IdP API calls
+            use_database: If True, query database directly instead of API
+            db_path: Path to shared SQLite database
         """
         self.idp_url = idp_url.rstrip('/')
         self.idp_token = idp_token
+        self.use_database = use_database
+        self.db_path = db_path
         self.session: Optional[aiohttp.ClientSession] = None
         
     async def start(self):
         """Initialize HTTP session"""
-        self.session = aiohttp.ClientSession()
-        logger.info("Policy service initialized")
+        if not self.use_database:
+            self.session = aiohttp.ClientSession()
+        logger.info(f"Policy service initialized (mode: {'database' if self.use_database else 'API'})")
         
     async def stop(self):
         """Cleanup HTTP session"""
@@ -102,9 +108,9 @@ class PostfixPolicyService:
             attributes[key] = value
         return attributes
     
-    async def check_user_exists(self, email: str) -> tuple[bool, Optional[str]]:
+    def check_user_exists_from_db(self, email: str) -> tuple[bool, Optional[str]]:
         """
-        Check if user exists in Thunder IdP
+        Check if user exists in shared SQLite database (synchronous)
         
         Args:
             email: Email address to validate
@@ -112,6 +118,60 @@ class PostfixPolicyService:
         Returns:
             Tuple of (exists: bool, error_message: Optional[str])
         """
+        if '@' not in email:
+            logger.warning(f"Invalid email format: {email}")
+            return False, None
+        
+        try:
+            # Connect to shared database
+            conn = sqlite3.connect(self.db_path, timeout=5.0)
+            cursor = conn.cursor()
+            
+            # Query users table
+            cursor.execute(
+                "SELECT COUNT(*) FROM users WHERE email = ?",
+                (email,)
+            )
+            count = cursor.fetchone()[0]
+            conn.close()
+            
+            if count > 0:
+                logger.info(f"User found in database: {email}")
+                return True, None
+            else:
+                logger.info(f"User not found in database: {email}")
+                return False, None
+                
+        except sqlite3.OperationalError as e:
+            if "no such table" in str(e).lower():
+                logger.error(f"Database table not found: {e}")
+                logger.error("The shared database may not be initialized yet")
+                return False, "Database not ready"
+            elif "unable to open database" in str(e).lower():
+                logger.error(f"Cannot open database at {self.db_path}: {e}")
+                return False, "Database not accessible"
+            else:
+                logger.error(f"Database error: {e}")
+                return False, "Database error"
+        except Exception as e:
+            logger.error(f"Unexpected database error checking {email}: {e}")
+            return False, "Database error"
+    
+    async def check_user_exists(self, email: str) -> tuple[bool, Optional[str]]:
+        """
+        Check if user exists in Thunder IdP or database
+        
+        Args:
+            email: Email address to validate
+            
+        Returns:
+            Tuple of (exists: bool, error_message: Optional[str])
+        """
+        # Use database mode if configured
+        if self.use_database:
+            return self.check_user_exists_from_db(email)
+        
+        # API mode - use Thunder SCIM
         if not self.session:
             return False, "Service not initialized"
         
@@ -282,6 +342,8 @@ async def main():
     config_file = os.getenv('CONFIG_FILE', '/etc/postfix/silver.yaml')
     idp_url = os.getenv('IDP_URL', 'https://thunder-server:8090')
     idp_token = os.getenv('IDP_TOKEN', None)
+    use_database = os.getenv('USE_DATABASE', 'false').lower() in ('true', '1', 'yes')
+    db_path = os.getenv('DB_PATH', '/app/data/databases/shared.db')
     host = os.getenv('POLICY_HOST', '0.0.0.0')
     port = int(os.getenv('POLICY_PORT', '9000'))
     
@@ -296,11 +358,14 @@ async def main():
             logger.warning(f"Could not load config file: {e}")
     
     logger.info(f"Starting Postfix Policy Service")
-    logger.info(f"IdP URL: {idp_url}")
+    if use_database:
+        logger.info(f"Mode: Database (path: {db_path})")
+    else:
+        logger.info(f"Mode: API (IdP URL: {idp_url})")
     logger.info(f"Listening on {host}:{port}")
     
     # Initialize policy service
-    policy_service = PostfixPolicyService(idp_url, idp_token)
+    policy_service = PostfixPolicyService(idp_url, idp_token, use_database, db_path)
     await policy_service.start()
     
     # Start server
