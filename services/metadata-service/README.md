@@ -2,12 +2,18 @@
 
 A Go service that sends ClamAV signature heartbeat data to the Super Platform.
 
+This service also exposes standard OpenID Connect discovery and Thunderbird autoconfig endpoints so custom domains can advertise OAuth2-capable IMAP/SMTP settings.
+
 ## What It Does
 
 - Monitors ClamAV signature database (`daily.cvd/cld`)
 - Automatically detects server IP address
 - Sends heartbeat data every 60 seconds (configurable)
 - Receives results from Super Platform
+- Serves `/.well-known/openid-configuration`
+- Serves Thunderbird autoconfig at:
+  - `/.well-known/autoconfig/mail/config-v1.1.xml`
+  - `/mail/config-v1.1.xml`
 
 ## Quick Start
 
@@ -18,6 +24,13 @@ Edit `.env` file:
 EXTERNAL_API_URL=https://your-super-platform.com/v1/silver/events
 API_KEY=your-secret-api-key-here
 PUSH_INTERVAL_SECONDS=60
+
+# Optional overrides for OAuth2 discovery/autoconfig
+# PUBLIC_BASE_DOMAIN=example.com
+# OAUTH_ISSUER_URL=https://example.com:8090
+# OAUTH_SCOPE=openid email profile
+# IMAP_HOSTNAME=imap.example.com
+# SMTP_HOSTNAME=smtp.example.com
 ```
 
 ### 2. Deploy
@@ -68,6 +81,17 @@ The service sends this JSON every 60 seconds:
 | `ENABLE_PUSH_SERVICE` | No | true | Enable/disable heartbeat |
 | `PORT` | No | 8888 | Service port |
 | `CLAMAV_DB_PATH` | No | /var/lib/clamav | ClamAV database location |
+| `PUBLIC_BASE_DOMAIN` | No | derived from request host | Base domain for discovery responses |
+| `OAUTH_ISSUER_URL` | No | `https://<domain>:8090` | OAuth2 issuer used in discovery/autoconfig |
+| `OAUTH_SCOPE` | No | `openid email profile` | OAuth2 scopes advertised to clients |
+| `OAUTH_AUTHORIZATION_PATH` | No | `/oauth2/authorize` | Authorization endpoint path |
+| `OAUTH_TOKEN_PATH` | No | `/oauth2/token` | Token endpoint path |
+| `OAUTH_JWKS_PATH` | No | `/oauth2/jwks` | JWKS endpoint path |
+| `OAUTH_USERINFO_PATH` | No | `/oauth2/userinfo` | Userinfo endpoint path |
+| `IMAP_HOSTNAME` | No | `mail.<domain>` | IMAP host in Thunderbird XML |
+| `IMAP_PORT` | No | 993 | IMAP port in Thunderbird XML |
+| `SMTP_HOSTNAME` | No | `mail.<domain>` | SMTP host in Thunderbird XML |
+| `SMTP_PORT` | No | 587 | SMTP port in Thunderbird XML |
 
 *Required for receiving results from Super Platform
 
@@ -103,6 +127,18 @@ curl -X POST http://localhost:8888/api/results \
     "data": {}
   }'
 ```
+
+### GET /.well-known/openid-configuration
+
+OpenID Connect Discovery document used by clients for OAuth2/OIDC metadata.
+
+### GET /.well-known/autoconfig/mail/config-v1.1.xml
+
+Thunderbird autoconfig endpoint (well-known path). This is one of the standard URLs Thunderbird checks for custom domains.
+
+### GET /mail/config-v1.1.xml
+
+Thunderbird autoconfig endpoint for deployments that use `autoconfig.<domain>` virtual host.
 
 ## Build & Run
 

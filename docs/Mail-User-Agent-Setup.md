@@ -6,6 +6,13 @@ This guide will help you set up a Mail User Agent (MUA) to interact with your Si
 
 ## Thunderbird Setup
 
+For automatic OAuth2 setup, ensure these URLs are publicly reachable over HTTPS:
+
+- `https://<your-domain>/.well-known/openid-configuration`
+- `https://autoconfig.<your-domain>/mail/config-v1.1.xml` or `https://<your-domain>/.well-known/autoconfig/mail/config-v1.1.xml`
+
+If these endpoints are available, Thunderbird can automatically detect `OAuth2` as the authentication method for IMAP/SMTP.
+
 1. Download and install [Mozilla Thunderbird](https://www.thunderbird.net/).
 2. Open Thunderbird and go to `Account Settings` from the menu.
 3. Click on `New Account` and select `Mail Account`.
@@ -13,8 +20,8 @@ This guide will help you set up a Mail User Agent (MUA) to interact with your Si
 5. Click on `Continue`. Thunderbird will attempt to automatically configure the account settings.
 6. If automatic configuration passes, click `Continue` and then enter your password when prompted and click `Continue`.
 7. If automatic configuration fails, click on `Manual config` and enter the following settings:
-    - **Incoming:** IMAP, `mail.yourdomain.com`, Port: **993**, SSL: **SSL/TLS**, Authentication: Normal password
-    - **Outgoing:** SMTP, `mail.yourdomain.com`, Port: 587, SSL: STARTTLS, Authentication: Normal password
+  - **Incoming:** IMAP, `mail.yourdomain.com`, Port: **993**, SSL: **SSL/TLS**, Authentication: OAuth2
+  - **Outgoing:** SMTP, `mail.yourdomain.com`, Port: 587, SSL: STARTTLS, Authentication: OAuth2
     - *Alternative (less secure):* For incoming, you can use Port: 143 with SSL: STARTTLS
 8. Click on `Re-test` to verify the settings.
 9. Once verified, click on `Continue` to finish the setup.
@@ -104,7 +111,7 @@ Use these settings for any email client:
 | **SMTP Server** | mail.yourdomain.com |
 | **SMTP Port** | 587 (STARTTLS) ✅ Recommended<br>465 (SSL/TLS) |
 | **Username** | Your full email address |
-| **Authentication** | Normal password |
+| **Authentication** | Normal password or OAuth2 |
 
 **Security Recommendation:** Always use port 993 with SSL/TLS for IMAP connections to ensure your email is encrypted from the start of the connection.
 
@@ -118,3 +125,4 @@ Use these settings for any email client:
   - Port 993 is not blocked by your firewall or ISP
   - Your email client supports SSL/TLS connections
 - For legacy systems that don't support SSL/TLS properly, you can fall back to port 143 with STARTTLS, but this is less secure.
+- For Thunderbird OAuth2 debug logging, launch with: `MOZ_LOG=imap:5,oauth:5`.

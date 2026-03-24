@@ -207,7 +207,9 @@ services:
       - mail-network
 
   metadata-service:
-    image: ghcr.io/lsflk/silver-metadata-service:main
+    build:
+      context: ./metadata-service
+      dockerfile: Dockerfile
     container_name: metadata-service
     ports:
       - "8888:8888"
@@ -220,6 +222,17 @@ services:
       - PUSH_INTERVAL_SECONDS=${PUSH_INTERVAL_SECONDS:-60}
       - ENABLE_PUSH_SERVICE=${ENABLE_PUSH_SERVICE:-true}
       - API_KEY=${API_KEY}
+      - PUBLIC_BASE_DOMAIN=${PUBLIC_BASE_DOMAIN}
+      - OAUTH_ISSUER_URL=${OAUTH_ISSUER_URL}
+      - OAUTH_SCOPE=${OAUTH_SCOPE:-openid email profile}
+      - OAUTH_AUTHORIZATION_PATH=${OAUTH_AUTHORIZATION_PATH:-/oauth2/authorize}
+      - OAUTH_TOKEN_PATH=${OAUTH_TOKEN_PATH:-/oauth2/token}
+      - OAUTH_JWKS_PATH=${OAUTH_JWKS_PATH:-/oauth2/jwks}
+      - OAUTH_USERINFO_PATH=${OAUTH_USERINFO_PATH:-/oauth2/userinfo}
+      - IMAP_HOSTNAME=${IMAP_HOSTNAME}
+      - IMAP_PORT=${IMAP_PORT:-993}
+      - SMTP_HOSTNAME=${SMTP_HOSTNAME}
+      - SMTP_PORT=${SMTP_PORT:-587}
     networks:
       - mail-network
       - observability

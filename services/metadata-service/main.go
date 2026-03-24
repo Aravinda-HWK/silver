@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	"encoding/json"
+	"encoding/xml"
 	"fmt"
 	"io"
 	"log"
@@ -35,13 +36,60 @@ func sanitizeForLog(s string) string {
 
 // Configuration
 type Config struct {
-	Port              string
-	ClamAVDBPath      string
-	ExternalAPIURL    string
-	PushInterval      time.Duration
-	EnablePushService bool
-	APIKey            string
-	InstanceID        string
+	Port                   string
+	ClamAVDBPath           string
+	ExternalAPIURL         string
+	PushInterval           time.Duration
+	EnablePushService      bool
+	APIKey                 string
+	InstanceID             string
+	PublicBaseDomain       string
+	OAuthIssuerURL         string
+	OAuthScope             string
+	OAuthAuthorizationPath string
+	OAuthTokenPath         string
+	OAuthJWKSPath          string
+	OAuthUserInfoPath      string
+	IMAPHostname           string
+	IMAPPort               int
+	SMTPHostname           string
+	SMTPPort               int
+}
+
+type tbClientConfig struct {
+	XMLName       xml.Name        `xml:"clientConfig"`
+	Version       string          `xml:"version,attr"`
+	EmailProvider tbEmailProvider `xml:"emailProvider"`
+}
+
+type tbEmailProvider struct {
+	ID             string             `xml:"id,attr"`
+	IncomingServer tbIncomingServer   `xml:"incomingServer"`
+	OutgoingServer tbOutgoingServer   `xml:"outgoingServer"`
+	OAuth2         tbOAuth2Config     `xml:"oauth2"`
+}
+
+type tbIncomingServer struct {
+	Type           string `xml:"type,attr"`
+	Hostname       string `xml:"hostname"`
+	Port           int    `xml:"port"`
+	SocketType     string `xml:"socketType"`
+	Authentication string `xml:"authentication"`
+	Username       string `xml:"username"`
+}
+
+type tbOutgoingServer struct {
+	Type           string `xml:"type,attr"`
+	Hostname       string `xml:"hostname"`
+	Port           int    `xml:"port"`
+	SocketType     string `xml:"socketType"`
+	Authentication string `xml:"authentication"`
+	Username       string `xml:"username"`
+}
+
+type tbOAuth2Config struct {
+	Issuer string `xml:"issuer"`
+	Scope  string `xml:"scope"`
 }
 
 // SuperPlatformHeartbeat represents the heartbeat payload for Super Platform
@@ -63,13 +111,24 @@ var config Config
 
 func init() {
 	config = Config{
-		Port:              getEnv("PORT", "8888"),
-		ClamAVDBPath:      getEnv("CLAMAV_DB_PATH", "/var/lib/clamav"),
-		ExternalAPIURL:    getEnv("EXTERNAL_API_URL", ""),
-		PushInterval:      time.Duration(getEnvAsInt("PUSH_INTERVAL_SECONDS", 60)) * time.Second,
-		EnablePushService: getEnv("ENABLE_PUSH_SERVICE", "true") == "true",
-		APIKey:            getEnv("API_KEY", ""),
-		InstanceID:        getServerIP(), // Use server IP as instance ID
+		Port:                   getEnv("PORT", "8888"),
+		ClamAVDBPath:           getEnv("CLAMAV_DB_PATH", "/var/lib/clamav"),
+		ExternalAPIURL:         getEnv("EXTERNAL_API_URL", ""),
+		PushInterval:           time.Duration(getEnvAsInt("PUSH_INTERVAL_SECONDS", 60)) * time.Second,
+		EnablePushService:      getEnv("ENABLE_PUSH_SERVICE", "true") == "true",
+		APIKey:                 getEnv("API_KEY", ""),
+		InstanceID:             getServerIP(), // Use server IP as instance ID
+		PublicBaseDomain:       getEnv("PUBLIC_BASE_DOMAIN", ""),
+		OAuthIssuerURL:         getEnv("OAUTH_ISSUER_URL", ""),
+		OAuthScope:             getEnv("OAUTH_SCOPE", "openid email profile"),
+		OAuthAuthorizationPath: getEnv("OAUTH_AUTHORIZATION_PATH", "/oauth2/authorize"),
+		OAuthTokenPath:         getEnv("OAUTH_TOKEN_PATH", "/oauth2/token"),
+		OAuthJWKSPath:          getEnv("OAUTH_JWKS_PATH", "/oauth2/jwks"),
+		OAuthUserInfoPath:      getEnv("OAUTH_USERINFO_PATH", "/oauth2/userinfo"),
+		IMAPHostname:           getEnv("IMAP_HOSTNAME", ""),
+		IMAPPort:               getEnvAsInt("IMAP_PORT", 993),
+		SMTPHostname:           getEnv("SMTP_HOSTNAME", ""),
+		SMTPPort:               getEnvAsInt("SMTP_PORT", 587),
 	}
 }
 
@@ -102,6 +161,74 @@ func getServerIP() string {
 
 	localAddr := conn.LocalAddr().(*net.UDPAddr)
 	return localAddr.IP.String()
+}
+
+func appendPath(baseURL, path string) string {
+	baseURL = strings.TrimSuffix(baseURL, "/")
+	if !strings.HasPrefix(path, "/") {
+		path = "/" + path
+	}
+	return baseURL + path
+}
+
+func hostWithoutPort(host string) string {
+	h := strings.TrimSpace(strings.ToLower(host))
+	if strings.Contains(h, ":") {
+		if parsedHost, _, err := net.SplitHostPort(h); err == nil {
+			return parsedHost
+		}
+		return strings.Split(h, ":")[0]
+	}
+	return h
+}
+
+func domainFromEmail(email string) string {
+	email = strings.TrimSpace(strings.ToLower(email))
+	parts := strings.Split(email, "@")
+	if len(parts) != 2 || parts[1] == "" {
+		return ""
+	}
+	return parts[1]
+}
+
+func resolveBaseDomain(r *http.Request) string {
+	if config.PublicBaseDomain != "" {
+		return strings.ToLower(strings.TrimSpace(config.PublicBaseDomain))
+	}
+
+	if email := r.URL.Query().Get("emailaddress"); email != "" {
+		if domain := domainFromEmail(email); domain != "" {
+			return domain
+		}
+	}
+
+	host := hostWithoutPort(r.Host)
+	host = strings.TrimPrefix(host, "autoconfig.")
+	if host == "" {
+		return "localhost"
+	}
+	return host
+}
+
+func resolveIssuerURL(baseDomain string) string {
+	if config.OAuthIssuerURL != "" {
+		return strings.TrimSpace(config.OAuthIssuerURL)
+	}
+	return fmt.Sprintf("https://%s:8090", baseDomain)
+}
+
+func resolveIMAPHostname(baseDomain string) string {
+	if config.IMAPHostname != "" {
+		return strings.TrimSpace(config.IMAPHostname)
+	}
+	return "mail." + baseDomain
+}
+
+func resolveSMTPHostname(baseDomain string) string {
+	if config.SMTPHostname != "" {
+		return strings.TrimSpace(config.SMTPHostname)
+	}
+	return "mail." + baseDomain
 }
 
 // getClamAVSignatureInfo reads ClamAV daily.cvd file information
@@ -239,6 +366,72 @@ func healthHandler(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(response)
 }
 
+func openIDConfigurationHandler(w http.ResponseWriter, r *http.Request) {
+	baseDomain := resolveBaseDomain(r)
+	issuer := resolveIssuerURL(baseDomain)
+
+	response := map[string]interface{}{
+		"issuer":                                issuer,
+		"authorization_endpoint":                appendPath(issuer, config.OAuthAuthorizationPath),
+		"token_endpoint":                        appendPath(issuer, config.OAuthTokenPath),
+		"userinfo_endpoint":                     appendPath(issuer, config.OAuthUserInfoPath),
+		"jwks_uri":                              appendPath(issuer, config.OAuthJWKSPath),
+		"response_types_supported":              []string{"code"},
+		"grant_types_supported":                 []string{"authorization_code", "refresh_token"},
+		"subject_types_supported":               []string{"public"},
+		"id_token_signing_alg_values_supported": []string{"RS256"},
+		"scopes_supported":                      strings.Fields(config.OAuthScope),
+		"token_endpoint_auth_methods_supported": []string{"client_secret_post", "client_secret_basic", "none"},
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(response)
+}
+
+func thunderbirdAutoconfigHandler(w http.ResponseWriter, r *http.Request) {
+	baseDomain := resolveBaseDomain(r)
+	issuer := resolveIssuerURL(baseDomain)
+
+	payload := tbClientConfig{
+		Version: "1.1",
+		EmailProvider: tbEmailProvider{
+			ID: baseDomain,
+			IncomingServer: tbIncomingServer{
+				Type:           "imap",
+				Hostname:       resolveIMAPHostname(baseDomain),
+				Port:           config.IMAPPort,
+				SocketType:     "SSL",
+				Authentication: "OAuth2",
+				Username:       "%EMAILADDRESS%",
+			},
+			OutgoingServer: tbOutgoingServer{
+				Type:           "smtp",
+				Hostname:       resolveSMTPHostname(baseDomain),
+				Port:           config.SMTPPort,
+				SocketType:     "STARTTLS",
+				Authentication: "OAuth2",
+				Username:       "%EMAILADDRESS%",
+			},
+			OAuth2: tbOAuth2Config{
+				Issuer: issuer,
+				Scope:  config.OAuthScope,
+			},
+		},
+	}
+
+	xmlData, err := xml.MarshalIndent(payload, "", "  ")
+	if err != nil {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusInternalServerError)
+		json.NewEncoder(w).Encode(map[string]string{"error": "Failed to build autoconfig XML"})
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/xml")
+	_, _ = w.Write([]byte(xml.Header))
+	_, _ = w.Write(xmlData)
+}
+
 // apiKeyAuthMiddleware validates the API key for protected endpoints
 func apiKeyAuthMiddleware(next http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
@@ -337,6 +530,8 @@ func main() {
 	log.Printf("Port: %s", config.Port)
 	log.Printf("ClamAV DB Path: %s", config.ClamAVDBPath)
 	log.Printf("External API URL: %s", config.ExternalAPIURL)
+	log.Printf("Public Base Domain: %s", config.PublicBaseDomain)
+	log.Printf("OAuth Issuer URL Override: %s", config.OAuthIssuerURL)
 	log.Printf("Instance ID: %s", config.InstanceID)
 	log.Printf("Push Interval: %v", config.PushInterval)
 	log.Printf("Push Service Enabled: %v", config.EnablePushService)
@@ -356,6 +551,9 @@ func main() {
 	// Routes
 	router.HandleFunc("/health", healthHandler).Methods("GET")
 	router.HandleFunc("/api/results", apiKeyAuthMiddleware(receiveSuperPlatformResultHandler)).Methods("POST")
+	router.HandleFunc("/.well-known/openid-configuration", openIDConfigurationHandler).Methods("GET")
+	router.HandleFunc("/.well-known/autoconfig/mail/config-v1.1.xml", thunderbirdAutoconfigHandler).Methods("GET")
+	router.HandleFunc("/mail/config-v1.1.xml", thunderbirdAutoconfigHandler).Methods("GET")
 
 	// Apply middleware
 	handler := corsMiddleware(loggingMiddleware(router))
