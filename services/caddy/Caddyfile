@@ -1,0 +1,32 @@
+# Public HTTPS endpoints for Thunderbird autoconfig and OIDC discovery.
+# Requires PUBLIC_BASE_DOMAIN and existing cert files under /etc/letsencrypt/live/<domain>/.
+
+{
+  auto_https disable_redirects
+}
+
+http://{$PUBLIC_BASE_DOMAIN}, http://autoconfig.{$PUBLIC_BASE_DOMAIN} {
+  redir https://{host}{uri} 308
+}
+
+https://{$PUBLIC_BASE_DOMAIN} {
+  tls /etc/letsencrypt/live/{$PUBLIC_BASE_DOMAIN}/fullchain.pem /etc/letsencrypt/live/{$PUBLIC_BASE_DOMAIN}/privkey.pem
+
+  @discovery path /.well-known/openid-configuration /.well-known/autoconfig/mail/config-v1.1.xml /mail/config-v1.1.xml
+  handle @discovery {
+    reverse_proxy metadata-service:8888
+  }
+
+  respond "Not found" 404
+}
+
+https://autoconfig.{$PUBLIC_BASE_DOMAIN} {
+  tls /etc/letsencrypt/live/{$PUBLIC_BASE_DOMAIN}/fullchain.pem /etc/letsencrypt/live/{$PUBLIC_BASE_DOMAIN}/privkey.pem
+
+  @autoconfig path /mail/config-v1.1.xml /.well-known/autoconfig/mail/config-v1.1.xml
+  handle @autoconfig {
+    reverse_proxy metadata-service:8888
+  }
+
+  respond "Not found" 404
+}

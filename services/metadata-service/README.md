@@ -39,6 +39,18 @@ PUSH_INTERVAL_SECONDS=60
 docker-compose up -d metadata-service
 ```
 
+For Thunderbird autodiscovery from the public internet, start the `public-web` service as well. It terminates TLS on ports 80/443 and proxies discovery paths to `metadata-service`.
+
+```bash
+docker-compose up -d public-web metadata-service
+```
+
+If you need to run certbot container operations from compose, use the `certbot` profile explicitly:
+
+```bash
+docker-compose --profile certbot up -d certbot-server
+```
+
 ### 3. Check Logs
 
 ```bash

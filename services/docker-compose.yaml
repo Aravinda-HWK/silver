@@ -20,8 +20,6 @@ services:
         condition: service_started
       rspamd-server:
         condition: service_started
-      certbot-server:
-        condition: service_started
       raven-server:
         condition: service_started
 
@@ -196,6 +194,8 @@ services:
   certbot-server:
     image: ghcr.io/lsflk/silver-certbot:main
     container_name: certbot-server
+    profiles:
+      - certbot
     volumes:
       - ./silver-config/certbot/keys/etc:/etc/letsencrypt
       - ./silver-config/certbot/keys/log:/var/log/letsencrypt
@@ -205,6 +205,23 @@ services:
       - "443:443"
     networks:
       - mail-network
+
+  public-web:
+    image: caddy:2-alpine
+    container_name: public-web
+    ports:
+      - "80:80"
+      - "443:443"
+    environment:
+      - PUBLIC_BASE_DOMAIN=${PUBLIC_BASE_DOMAIN}
+    volumes:
+      - ./caddy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - ./silver-config/certbot/keys/etc:/etc/letsencrypt:ro
+    depends_on:
+      - metadata-service
+    networks:
+      - mail-network
+    restart: unless-stopped
 
   metadata-service:
     build:
