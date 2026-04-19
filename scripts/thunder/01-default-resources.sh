@@ -1192,10 +1192,58 @@ BODY="${RESPONSE%???}"
 
 if [[ "$HTTP_CODE" == "201" ]] || [[ "$HTTP_CODE" == "200" ]]; then
     log_success "CONSOLE application created successfully"
+    CONSOLE_APP_ID=$(echo "$BODY" | grep -o '"id":"[^"]*"' | head -1 | cut -d'"' -f4)
+    if [[ -n "$CONSOLE_APP_ID" ]]; then
+        log_info "CONSOLE_APP_ID: $CONSOLE_APP_ID"
+    else
+        log_warning "Could not extract CONSOLE application ID from response"
+    fi
 elif [[ "$HTTP_CODE" == "409" ]]; then
-    log_warning "CONSOLE application already exists, skipping"
+    log_warning "CONSOLE application already exists, retrieving application ID..."
+    RESPONSE=$(thunder_api_call GET "/applications")
+    HTTP_CODE="${RESPONSE: -3}"
+    BODY="${RESPONSE%???}"
+
+    if [[ "$HTTP_CODE" == "200" ]]; then
+        CONSOLE_APP_ID=$(echo "$BODY" | sed 's/},{/}\n{/g' | grep '"client_id":"CONSOLE"' | grep -o '"id":"[^"]*"' | head -1 | cut -d'"' -f4)
+        if [[ -z "$CONSOLE_APP_ID" ]]; then
+            CONSOLE_APP_ID=$(echo "$BODY" | sed 's/},{/}\n{/g' | grep '"clientId":"CONSOLE"' | grep -o '"id":"[^"]*"' | head -1 | cut -d'"' -f4)
+        fi
+
+        if [[ -n "$CONSOLE_APP_ID" ]]; then
+            log_success "Found CONSOLE application ID: $CONSOLE_APP_ID"
+            log_info "CONSOLE_APP_ID: $CONSOLE_APP_ID"
+        else
+            log_error "Could not find CONSOLE application in response"
+            exit 1
+        fi
+    else
+        log_error "Failed to fetch applications (HTTP $HTTP_CODE)"
+        exit 1
+    fi
 elif [[ "$HTTP_CODE" == "400" ]] && [[ "$BODY" =~ (Application already exists|APP-1022) ]]; then
-    log_warning "CONSOLE application already exists, skipping"
+    log_warning "CONSOLE application already exists, retrieving application ID..."
+    RESPONSE=$(thunder_api_call GET "/applications")
+    HTTP_CODE="${RESPONSE: -3}"
+    BODY="${RESPONSE%???}"
+
+    if [[ "$HTTP_CODE" == "200" ]]; then
+        CONSOLE_APP_ID=$(echo "$BODY" | sed 's/},{/}\n{/g' | grep '"client_id":"CONSOLE"' | grep -o '"id":"[^"]*"' | head -1 | cut -d'"' -f4)
+        if [[ -z "$CONSOLE_APP_ID" ]]; then
+            CONSOLE_APP_ID=$(echo "$BODY" | sed 's/},{/}\n{/g' | grep '"clientId":"CONSOLE"' | grep -o '"id":"[^"]*"' | head -1 | cut -d'"' -f4)
+        fi
+
+        if [[ -n "$CONSOLE_APP_ID" ]]; then
+            log_success "Found CONSOLE application ID: $CONSOLE_APP_ID"
+            log_info "CONSOLE_APP_ID: $CONSOLE_APP_ID"
+        else
+            log_error "Could not find CONSOLE application in response"
+            exit 1
+        fi
+    else
+        log_error "Failed to fetch applications (HTTP $HTTP_CODE)"
+        exit 1
+    fi
 else
     log_error "Failed to create CONSOLE application (HTTP $HTTP_CODE)"
     echo "Response: $BODY"
